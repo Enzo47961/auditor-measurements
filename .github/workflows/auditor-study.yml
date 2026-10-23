@@ -11,11 +11,11 @@ on:
         required: true
         type: string
       mode:
-        description: "exclusion: exclusão (B); defects: conferir os defeitos plantados (study/defects.json)"
+        description: "exclusion: exclusão (B); defects: conferir os defeitos plantados; study: auditar os 10 PRs do estudo com os defeitos e gerar os alertas"
         required: false
         default: exclusion
         type: choice
-        options: ["exclusion", "defects"]
+        options: ["exclusion", "defects", "study"]
 
 permissions:
   contents: read
@@ -23,7 +23,7 @@ permissions:
 jobs:
   study:
     runs-on: ubuntu-24.04   # fixado (D-55)
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
       - name: checkout do Mathlib no commit fixado (e1b2403b)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -86,7 +86,7 @@ jobs:
         run: lake exe cache get 2>&1 | tail -20
 
       - name: estudo — auditar os PRs elegíveis e aplicar a exclusão (B)
-        if: inputs.mode != 'defects'
+        if: inputs.mode == 'exclusion'
         run: |
           T="$RUNNER_TEMP/auditor-tool"
           python "$T/tools/phase1/study_audit.py" . --selection "$T/study/selection.json" --patches "$T/study/patches" --policy "$T/policy.toml" --out "$RUNNER_TEMP/out"
@@ -97,6 +97,15 @@ jobs:
         run: |
           T="$RUNNER_TEMP/auditor-tool"
           python "$T/tools/phase1/study_audit.py" . --selection "$T/study/selection.json" --patches "$T/study/patches" --policy "$T/policy.toml" --out "$RUNNER_TEMP/out" --defects "$T/study/defects.json"
+          git status --short | head -5
+
+      - name: estudo — os 10 PRs como os revisores os veem (com os defeitos) e os alertas
+        if: inputs.mode == 'study'
+        run: |
+          T="$RUNNER_TEMP/auditor-tool"
+          O="$RUNNER_TEMP/out"
+          python "$T/tools/phase1/study_audit.py" . --selection "$T/study/selection.json" --patches "$T/study/patches" --policy "$T/policy.toml" --out "$O" --defects "$T/study/defects.json" --prs "$T/study/prs.json"
+          python "$T/tools/phase1/study_run.py" alerts --reports "$O/reports" --prs "$T/study/prs.json" --out "$O/alerts.json"
           git status --short | head -5
 
       - name: artefato
