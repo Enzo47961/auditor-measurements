@@ -1,0 +1,129 @@
+# auditor-prep — preparação da camada 2 (checklist, passos 3 e 3b), num runner do GitHub em vez
+# da máquina do mantenedor. Só no repositório de medições (auditor-measurements); disparo manual (workflow_dispatch); só leitura.
+#   1. lake exe cache get (Mathlib no commit fixado, branch auditor-base);
+#   2. auditor-gen-allowlist --project .  → artefato com .auditor/ (classificação é humana);
+#   3. gen_tcb_roots.py --check           → target_trusted_roots do auditor bate com este checkout;
+#   4. teste de fumaça (passo 3b): auditor-ci run num único arquivo, --build-cache miss.
+# Nada aqui commita, comenta ou abre PR: os resultados saem como artefato `auditor-prep`.
+name: auditor-prep
+
+on:
+  workflow_dispatch:
+    inputs:
+      auditor-ref:
+        description: "commit (SHA) fixado do auditor"
+        required: true
+        type: string
+      smoke-file:
+        description: "arquivo do teste de fumaça"
+        default: "Mathlib/Logic/Hydra.lean"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  prep:
+    runs-on: ubuntu-24.04   # fixado (D-55): ubuntu-latest migra para Ubuntu 26 desde 2026-10-19
+    timeout-minutes: 90
+    steps:
+      - name: checkout do Mathlib no commit fixado (e1b2403b)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: leanprover-community/mathlib4
+          ref: e1b2403bdd31a2756e30282d62b3fa54cc95c869
+          persist-credentials: false
+
+      - name: configuração do auditor para o Mathlib (.auditor/ deste repositório)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          path: .measurements
+          persist-credentials: false
+
+      - name: sobrepor .auditor/ e conferir o commit do Mathlib
+        run: |
+          cp -r .measurements/.auditor .
+          rm -rf .measurements
+          test "$(git rev-parse HEAD)" = e1b2403bdd31a2756e30282d62b3fa54cc95c869
+
+      - name: checkout do auditor (ref fixada)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: Enzo47961/auditor
+          ref: ${{ inputs.auditor-ref }}
+          path: .auditor-tool
+          persist-credentials: false
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: instalar o auditor (e tirá-lo do workspace, D-62)
+        run: |
+          python -m pip install ./.auditor-tool
+          mv .auditor-tool "$RUNNER_TEMP/auditor-tool"
+
+      - name: instalar elan (release fixada, SHA-256 conferido)
+        env:
+          ELAN_VERSION: v4.2.4
+          ELAN_SHA256: 42b94d4244e8353142c456ec0e4ca6528fd898a6c604d4059f494e706e431f63
+        run: |
+          curl -sSfL "https://github.com/leanprover/elan/releases/download/$ELAN_VERSION/elan-x86_64-unknown-linux-gnu.tar.gz" -o "$RUNNER_TEMP/elan.tar.gz"
+          echo "$ELAN_SHA256  $RUNNER_TEMP/elan.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/elan.tar.gz" -C "$RUNNER_TEMP"
+          "$RUNNER_TEMP/elan-init" -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: conferências de base
+        run: |
+          mkdir -p "$RUNNER_TEMP/prep"
+          { echo "commit: $(git rev-parse HEAD)"; echo "toolchain: $(cat lean-toolchain)";
+            echo "auditor: $(git -C "$RUNNER_TEMP/auditor-tool" rev-parse HEAD)"; } | tee "$RUNNER_TEMP/prep/base.txt"
+
+      - name: lake exe cache get
+        run: lake exe cache get 2>&1 | tail -20
+
+      - name: allow-list do Mathlib (passo 3)
+        run: |
+          rc=0
+          auditor-gen-allowlist --project . > "$RUNNER_TEMP/prep/gen-allowlist.log" 2>&1 || rc=$?
+          echo "exit=$rc" >> "$RUNNER_TEMP/prep/gen-allowlist.log"
+          tail -30 "$RUNNER_TEMP/prep/gen-allowlist.log"
+          if [ -f .auditor/allowlist.json ]; then
+            cp -r .auditor "$RUNNER_TEMP/prep/dot-auditor"
+            python -c "import json;d=json.load(open('.auditor/allowlist.json'));print('libraries:',d.get('libraries'));print('module_count:',d.get('module_count'));print('unclassified:',d.get('unclassified'))" | tee "$RUNNER_TEMP/prep/unclassified.txt"
+          fi
+
+      - name: target_trusted_roots --check (passo 3)
+        run: |
+          rc=0
+          python "$RUNNER_TEMP/auditor-tool/tools/gen_tcb_roots.py" --sysroot "$(lean --print-prefix)" --project . --root Mathlib --check \
+            > "$RUNNER_TEMP/prep/gen-tcb-roots.log" 2>&1 || rc=$?
+          echo "exit=$rc" >> "$RUNNER_TEMP/prep/gen-tcb-roots.log"
+          cat "$RUNNER_TEMP/prep/gen-tcb-roots.log"
+
+      - name: teste de fumaça (passo 3b)
+        env:
+          SMOKE_FILE: ${{ inputs.smoke-file }}
+        run: |
+          rc=0
+          auditor-ci run "$SMOKE_FILE" --policy "$RUNNER_TEMP/auditor-tool/policy.toml" --out-dir "$RUNNER_TEMP/prep/smoke" \
+            --build-cache miss --timeout-total-first-run 1800 \
+            --started-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --summary "$GITHUB_STEP_SUMMARY" || rc=$?
+          echo "exit=$rc" | tee "$RUNNER_TEMP/prep/smoke-exit.txt"
+          python -c "import json;o=json.load(open('$RUNNER_TEMP/prep/smoke/outcome.json'));print({k:o[k] for k in ('cache_state','first_run','infra_failed','exit_code')})" | tee -a "$RUNNER_TEMP/prep/smoke-exit.txt" || true
+          # o `||` precisa decidir pelo grep, não pelo tee (que sempre sai com 0)
+          if signals=$(grep -rlE "allowlist_unavailable|toolchain_mismatch|inspector_build_failed|sysroot_mismatch|search_path_unrecognized|tcb_boundary_undeclared|unknown_command" "$RUNNER_TEMP/prep/smoke/"); then
+            echo "$signals" | tee -a "$RUNNER_TEMP/prep/smoke-exit.txt"
+          else
+            echo "nenhum sinal de ambiente" | tee -a "$RUNNER_TEMP/prep/smoke-exit.txt"
+          fi
+
+      - name: artefato
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: auditor-prep
+          path: ${{ runner.temp }}/prep
+          include-hidden-files: true
+          if-no-files-found: warn

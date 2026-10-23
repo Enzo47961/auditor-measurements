@@ -1,0 +1,133 @@
+# auditor-measure — medições da Fase 1 (sub-fase 1a), num runner do GitHub. Só no repositório de medições (auditor-measurements); disparo
+# manual (workflow_dispatch); só leitura. Nada aqui commita, comenta ou abre PR: os resultados
+# saem como artefato `auditor-measure`.
+#   p0-1: `@[implemented_by]`/`@[extern]` escritos × gerados no Mathlib inteiro
+#         (tools/phase1/ImplementedByScan.lean + implemented_by_measure.py; docs/p0-1-implemented-by.md);
+#   p0-2: causas de fail-closed da Etapa A no top-60 por fanout e no Mathlib inteiro
+#         (tools/layer2/fanout.py + tools/phase1/stage_a_causes.py; docs/p0-2-fail-closed.md).
+name: auditor-measure
+
+on:
+  workflow_dispatch:
+    inputs:
+      auditor-ref:
+        description: "commit (SHA) fixado do auditor"
+        required: true
+        type: string
+      measure:
+        description: "medição"
+        required: true
+        default: "all"
+        type: choice
+        options: ["all", "p0-1", "p0-2"]
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: ubuntu-24.04   # fixado (D-55)
+    timeout-minutes: 150
+    steps:
+      - name: checkout do Mathlib no commit fixado (e1b2403b)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: leanprover-community/mathlib4
+          ref: e1b2403bdd31a2756e30282d62b3fa54cc95c869
+          persist-credentials: false
+
+      - name: configuração do auditor para o Mathlib (.auditor/ deste repositório)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          path: .measurements
+          persist-credentials: false
+
+      - name: sobrepor .auditor/ e conferir o commit do Mathlib
+        run: |
+          cp -r .measurements/.auditor .
+          rm -rf .measurements
+          test "$(git rev-parse HEAD)" = e1b2403bdd31a2756e30282d62b3fa54cc95c869
+
+      - name: checkout do auditor (ref fixada)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: Enzo47961/auditor
+          ref: ${{ inputs.auditor-ref }}
+          path: .auditor-tool
+          persist-credentials: false
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: instalar o auditor (e tirá-lo do workspace, D-62)
+        run: |
+          python -m pip install ./.auditor-tool
+          mv .auditor-tool "$RUNNER_TEMP/auditor-tool"
+
+      - name: instalar elan (release fixada, SHA-256 conferido)
+        env:
+          ELAN_VERSION: v4.2.4
+          ELAN_SHA256: 42b94d4244e8353142c456ec0e4ca6528fd898a6c604d4059f494e706e431f63
+        run: |
+          curl -sSfL "https://github.com/leanprover/elan/releases/download/$ELAN_VERSION/elan-x86_64-unknown-linux-gnu.tar.gz" -o "$RUNNER_TEMP/elan.tar.gz"
+          echo "$ELAN_SHA256  $RUNNER_TEMP/elan.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/elan.tar.gz" -C "$RUNNER_TEMP"
+          "$RUNNER_TEMP/elan-init" -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: conferências de base
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          { echo "commit: $(git rev-parse HEAD)"; echo "toolchain: $(cat lean-toolchain)";
+            echo "auditor: $(git -C "$RUNNER_TEMP/auditor-tool" rev-parse HEAD)";
+            echo "measure: ${{ inputs.measure }}"; } | tee "$RUNNER_TEMP/out/base.txt"
+          git merge-base --is-ancestor e1b2403bdd31a2756e30282d62b3fa54cc95c869 HEAD
+          git diff --quiet e1b2403bdd31a2756e30282d62b3fa54cc95c869 HEAD -- '*.lean'
+          echo "nenhum .lean difere de e1b2403b" | tee -a "$RUNNER_TEMP/out/base.txt"
+
+      - name: lake exe cache get
+        run: lake exe cache get 2>&1 | tail -20
+
+      - name: P0-2 — causas de fail-closed da Etapa A
+        if: inputs.measure == 'all' || inputs.measure == 'p0-2'
+        run: |
+          T="$RUNNER_TEMP/auditor-tool/tools"
+          python "$T/layer2/fanout.py" . --root Mathlib --json "$RUNNER_TEMP/out/fanout.json" > /dev/null
+          python "$T/phase1/stage_a_causes.py" . --fanout "$RUNNER_TEMP/out/fanout.json" --top 60 \
+            --json "$RUNNER_TEMP/out/p0-2-top60.json" --md "$RUNNER_TEMP/out/p0-2-top60.md"
+          python "$T/phase1/stage_a_causes.py" . --fanout "$RUNNER_TEMP/out/fanout.json" --top 100000 \
+            --json "$RUNNER_TEMP/out/p0-2-all.json" --md "$RUNNER_TEMP/out/p0-2-all.md"
+          head -12 "$RUNNER_TEMP/out/p0-2-top60.md" >> "$GITHUB_STEP_SUMMARY"
+          head -12 "$RUNNER_TEMP/out/p0-2-all.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: P0-1 — compilar o scanner
+        if: inputs.measure == 'all' || inputs.measure == 'p0-1'
+        run: |
+          B="$RUNNER_TEMP/ibscan"
+          mkdir -p "$B"
+          cp "$RUNNER_TEMP/auditor-tool/tools/phase1/ImplementedByScan.lean" "$B/"
+          cp lean-toolchain "$B/"
+          printf 'import Lake\nopen Lake DSL\npackage ibscan\n@[default_target] lean_exe implemented_by_scan where\n  root := `ImplementedByScan\n  supportInterpreter := true\n' > "$B/lakefile.lean"
+          (cd "$B" && lake build 2>&1 | tail -5)
+
+      - name: P0-1 — implemented_by escritos × gerados no Mathlib
+        if: inputs.measure == 'all' || inputs.measure == 'p0-1'
+        run: |
+          S="$RUNNER_TEMP/ibscan/.lake/build/bin/implemented_by_scan"
+          M="$RUNNER_TEMP/auditor-tool/tools/phase1/implemented_by_measure.py"
+          O="$RUNNER_TEMP/out"
+          /usr/bin/time -v lake env "$S" dump Mathlib "$O/p0-1-dump.json" 2> "$O/p0-1-dump.time"
+          python "$M" classify . "$O/p0-1-dump.json" --seeds "$O/p0-1-seeds.json" --json "$O/p0-1-classify.json" > /dev/null
+          /usr/bin/time -v lake env "$S" reach Mathlib "$O/p0-1-seeds.json" "$O/p0-1-reach.json" 2> "$O/p0-1-reach.time"
+          python "$M" report "$O/p0-1-classify.json" "$O/p0-1-reach.json" --json "$O/p0-1.json" --md "$O/p0-1.md"
+          grep -E "Elapsed|Maximum resident" "$O"/p0-1-*.time || true
+          head -40 "$O/p0-1.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: artefato
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: auditor-measure
+          path: ${{ runner.temp }}/out
+          if-no-files-found: warn

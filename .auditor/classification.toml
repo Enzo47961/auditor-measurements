@@ -1,0 +1,259 @@
+# Classificação dos comandos do Mathlib para a Etapa A do auditor (L-17, L-25).
+# Mathlib e1b2403b, toolchain leanprover/lean4:v4.36.0-rc1. Cada comando foi classificado lendo
+# a implementação no commit fixado; ambíguo → fail-closed (L-25).
+#
+# Revisão:
+#   1. Primeiro revisor (humano): aprovou o rascunho como base (instrução 17).
+#      Divergências da lista prévia dele (7): #count_heartbeats, #leansearch, #loogle, #parse, #search, deprecate, notation3.
+#      São CORREÇÕES, não discordâncias: a lista prévia foi feita pelo nome; esta, pela leitura.
+#   2. Segunda revisão: feita pelo AUTOR do rascunho (Claude), por decisão do mantenedor, depois de
+#      uma revisão externa não identificada cujas citações de linha não batiam com o commit fixado.
+#      DESVIO do checklist (passo 3 exige revisor que não seja o autor), aceito pelo primeiro
+#      revisor como decisão final; L-26. Decisões: #lint, #string_diagram e
+#      unsuppress_compilation → fail-closed; unset_option → allowed.
+classification_version = "mathlib-e1b2403b-1"
+# Declaração de revisão (obrigatória; L-26; repetida em tcb.classification_review_status):
+reviewed_by = "author-self-review"
+reviewer_independence = "none"
+revision_note = "Revisão externa descartada por falta de identificação e citações de linha divergentes do commit fixado. Segunda revisão feita pelo autor do rascunho por decisão do mantenedor."
+
+allowed = [
+  # Nota de adaptação (comentário estruturado); não executa código.
+  "#adaptation_note",
+  # Imprime as regras do Aesop registradas.
+  "#aesop_rules",
+  # Imprime estatísticas do Aesop.
+  "#aesop_stats",
+  # Configura o linter de táticas não usadas (descontinuado em favor de `allow_unused_tactic`).
+  "#allow_unused_tactic",
+  # Como `#check` (allowed no core), só muda a impressão.
+  "#check'",
+  # Imprime as referências cruzadas DLMF das declarações.
+  "#dlmf_tags",
+  # Procura declarações por padrão de tipo (elabora o padrão, como `#check`).
+  "#find",
+  # Sugere o módulo para uma declaração (lê o grafo de imports).
+  "#find_home",
+  # Procura declarações de sintaxe pelo átomo (lê as tabelas do parser).
+  "#find_syntax",
+  # Mostra documentação de opções, táticas, comandos e atributos.
+  "#help",
+  # Mostra os imports novos trazidos por módulos.
+  "#import_diff",
+  # Lista instâncias candidatas (primeiro passo de `#synth`, allowed no core).
+  "#instances",
+  # Imprime as referências Kerodon.
+  "#kerodon_tags",
+  # Lista os linters disponíveis.
+  "#list_linters",
+  # Imprime as referências LMFDB.
+  "#lmfdb_tags",
+  # Lista instâncias com nome longo.
+  "#long_instances",
+  # Lista declarações com nome longo.
+  "#long_names",
+  # Calcula imports mínimos; a forma `#min_imports in cmd` embrulha um comando sem mudar opções,
+  # como `#time in` no core.
+  "#min_imports",
+  # Descontinuado: emite aviso e chama `#min_imports`.
+  "#minimize_imports",
+  # Sugere imports normalizados.
+  "#norm_imports",
+  # Imprime as referências OEIS.
+  "#oeis_tags",
+  # Imprime as referências π-Base.
+  "#pibase_tags",
+  # Imprime os teoremas registrados para `fun_prop`.
+  "#print_fun_prop_theorems",
+  # Imprime a árvore de discriminação dos lemas de `push`.
+  "#push_discr_tree",
+  # Lista imports redundantes.
+  "#redundant_imports",
+  # Zera o estado do linter de imports mínimos.
+  "#reset_min_imports",
+  # Mostra o `SyntaxNodeKind` de uma sintaxe (só parseia).
+  "#show_kind",
+  # Destaca declarações não usadas (lê o ambiente).
+  "#show_unused",
+  # Imprime as referências Stacks.
+  "#stacks_tags",
+  # Conta/lista os imports transitivos.
+  "#trans_imports",
+  # `#whats_new in cmd`: executa o comando e lista as declarações novas, sem mudar opções.
+  "#whats_new",
+  # Imprime as referências Wikidata.
+  "#wikidata_tags",
+  # Registra regras do Aesop (como o atributo `@[aesop]`).
+  "add_aesop_rules",
+  # Cria aliases de declarações existentes (constantes conferidas pelo kernel).
+  "alias",
+  # Configura o linter de táticas não usadas.
+  "allow_unused_tactic",
+  # Falha se a declaração usa `sorryAx` (só lê o ambiente).
+  "assert_no_sorry",
+  # Como `theorem_wanted`, para definições (`DefWanted T`).
+  "def_wanted",
+  # Remove regras do Aesop.
+  "erase_aesop_rules",
+  # Estende a docstring de uma declaração.
+  "extend_docs",
+  # Configura as projeções usadas pelo atributo `@[simps]`.
+  "initialize_simps_projections",
+  # Igual, imprimindo a configuração.
+  "initialize_simps_projections?",
+  # Insere entrada no dicionário do `to_additive` (as declarações geradas são conferidas pelo
+  # kernel).
+  "insert_to_additive_translation",
+  # Insere entrada no dicionário do `to_dual`.
+  "insert_to_dual_translation",
+  # Como `theorem_wanted`, para instâncias.
+  "instance_wanted",
+  # Define por meio de um invólucro irredutível + lema de equação; constantes conferidas pelo
+  # kernel.
+  "irreducible_def",
+  # Macro para `theorem`.
+  "lemma",
+  # Registra uma nota de documentação.
+  "library_note",
+  # Gera o lema `iff` de um predicado indutivo (constante conferida pelo kernel).
+  "mk_iff_of_inductive_prop",
+  # Sinônimo de `theorem_wanted`.
+  "proof_wanted",
+  # Registra uma tática na lista da tática `hint` (só executa se `hint` for usada, e aí aparece como
+  # tática no arquivo).
+  "register_hint",
+  # Marca resultado desejado: elabora para um `def` privado de tipo `ProofWanted T` (sem prova de
+  # `T`).
+  "theorem_wanted",
+  # Dica de tradução de nomes para `to_additive`.
+  "to_additive_name_hint",
+  # Registra a tradução dual de uma declaração.
+  "to_dual_for",
+  # Registra lema de igualdade usado na tradução dual.
+  "to_dual_insert_cast",
+  # Registra função de cast usada na tradução dual.
+  "to_dual_insert_cast_fun",
+  # Dica de tradução de nomes para `to_dual`.
+  "to_dual_name_hint",
+  # Remove uma opção definida pelo usuário (volta ao padrão).
+  # Segunda revisão: allowed confirmado. Só apaga a opção (`(← getOptions).erase`,
+  # Mathlib/Tactic/UnsetOption.lean:38); não injeta `set_option`, e a Etapa A já viu qualquer
+  # `set_option` literal antes.
+  "unset_option",
+  # Como `variable`, sugerindo as hipóteses de classe que faltam.
+  "variable?",
+  # Stub que só avisa que o comando se chama `variable` no Lean 4.
+  "variables",
+  # Sintaxe antiga de `#whats_new` (macro).
+  "whatsnew",
+]
+
+syntax_extension = [
+  # Gera `local notation3` para as variáveis (NamePolyVars.lean:59): introduz sintaxe.
+  "name_poly_vars",
+  # Gera notação local para as variáveis (mesmo mecanismo de `name_poly_vars`).
+  "name_power_vars",
+  # Declara notação nova (como `notation` no core, que é `syntax_extension`).
+  "notation3",
+]
+
+metaprogramming = [
+  # Lê e ESCREVE arquivos (`IO.FS.writeFile`) e roda `lake build` via `IO.Process`.
+  "#clear_deprecations",
+  # Calcula sugestões de reescrita para o widget (mesma maquinaria de `rw??`).
+  "#click_suggestions",
+  # Roda uma conversão (tática `conv`) sobre um termo e imprime o resultado: executa tática na
+  # elaboração.
+  "#conv",
+  # Elabora o comando embrulhado com `set_option maxHeartbeats 0 in` injetado
+  # (CountHeartbeats.lean:143): desliga o limite de heartbeats sem que a Etapa A veja o `set_option`
+  # (contorna a O-3).
+  "#count_heartbeats",
+  # Roda o comando embrulhado n vezes, cada uma com `set_option maxHeartbeats 0` injetado
+  # (CountHeartbeats.lean:202; mesmo motivo de `#count_heartbeats`).
+  "#count_heartbeats!",
+  # Re-executa o comando embrulhado com uma configuração permissiva de transparência para que "tenha
+  # efeito": muda a elaboração sem que a Etapa A veja.
+  "#defeq_abuse",
+  # [ambíguo] Embrulha um comando e gera aliases `@[deprecated]` como sugestão; ferramenta de
+  # manutenção que reescreve comandos.
+  "#deprecate",
+  # [ambíguo] Elabora um termo e mostra a estrutura da prova. Mantido fail-closed como na lista do
+  # revisor (diagnóstico, mas percorre e exibe provas arbitrárias).
+  "#explode",
+  # ProofWidgets: avalia um valor ou uma computação em mônada de metaprogramação (`CommandElabM
+  # Html`).
+  "#html",
+  # [ambíguo] Macro que injeta `set_option Elab.async false` e `set_option linter.minImports true`
+  # (escondidos da Etapa A) e lê arquivos do disco.
+  "#import_bumps",
+  # [ambíguo] Faz requisição HTTP a um serviço externo na elaboração (LeanSearch). Não altera o
+  # ambiente, mas executaria IO de rede no runner, com conteúdo do PR. Fail-closed por precaução;
+  # pode ser relaxado.
+  "#leansearch",
+  # Executa linters com `evalConstCheck` (Batteries/Tactic/Lint/Basic.lean:131), e qualquer arquivo
+  # pode definir um linter próprio com `@[env_linter]` e rodá-lo com `#lint nome`
+  # (Frontend.lean:42-45): executa código do usuário na elaboração. A premissa do rascunho (linters
+  # fixos) era falsa.
+  "#lint",
+  # [ambíguo] Requisição HTTP ao Loogle na elaboração (mesmo motivo de `#leansearch`).
+  "#loogle",
+  # Atalho para `#conv norm_num`: executa `norm_num`.
+  "#norm_num",
+  # Executa uma função de parser indicada pelo usuário (`#parse Mathlib.Stacks.stacksTagFn => …`):
+  # roda código compilado escolhido no arquivo. A condição do revisor ("se só parseia sem elaborar")
+  # não se cumpre.
+  "#parse",
+  # Executa a tática `pull` sobre um termo (macro em Mathlib/Tactic/Push.lean:381).
+  "#pull",
+  # Executa a tática `push` sobre um termo.
+  "#push",
+  # Calcula todas as reescritas possíveis de um termo (busca na biblioteca): executa a maquinaria de
+  # `rw??`.
+  "#rw??",
+  # Plausible: avalia geradores aleatórios com `evalExpr` (unsafe).
+  "#sample",
+  # [ambíguo] Requisição HTTP (LeanSearch/LeanStateSearch) na elaboração.
+  "#search",
+  # Atalho para `#conv simp`: executa `simp` sobre um termo.
+  "#simp",
+  # [ambíguo] Ambíguo → fail-closed (L-25), por coerência com os demais ambíguos. Observação: o
+  # `Tactic.Monoidal.eval` que ele usa é normalização no nível Meta e não executa código compilado;
+  # o motivo é a regra de ambiguidade, não um vetor concreto. Candidato à Fase 1.
+  "#string_diagram",
+  # Plausible: avalia a proposição em exemplos aleatórios (executa código compilado).
+  "#test",
+  # Calcula todos os desdobramentos de um termo: executa unfold na elaboração.
+  "#unfold?",
+  # Reduz o termo a forma normal fraca (`whnf`): redução na elaboração, como `#reduce` no core.
+  "#whnf",
+  # Igual a `#whnf` com transparência reducible: redução na elaboração.
+  "#whnfR",
+  # Expande para `meta initialize` (registra extensão de ambiente), como `initialize` no core.
+  "declare_aesop_rule_sets",
+  # [ambíguo] Sintaxe antiga (descontinuada) de `#deprecate to … in cmd`; mesmo tratamento. DIVERGE
+  # da lista do revisor (que o listou como declaração).
+  "deprecate",
+  # Elabora o comando embrulhado com `set_option maxHeartbeats 0 in` injetado
+  # (CountHeartbeats.lean:187).
+  "guard_min_heartbeats",
+  # Constrói a prova a partir de certificado LRAT com `evalTerm`/`unsafe`; aceita `include_str` (lê
+  # arquivo do disco).
+  "lrat_proof",
+  # `sudo set_option` aceita opções não declaradas, fora do reconhecimento de opções da política.
+  "sudo",
+  # [ambíguo] Instala elaborador de comando e macro locais (`attribute [local command_elab …]`) que
+  # trocam `def` por `noncomputable def`. O efeito é benigno (menos código compilado; o kernel
+  # confere tudo), mas registra elaborador escondido. Usado em 41 arquivos do Mathlib: candidato
+  # forte a relaxar.
+  "suppress_compilation",
+  # A forma `unsuppress_compilation in cmd` expande para `… cmd suppress_compilation`
+  # (Mathlib/Tactic/SuppressCompilation.lean:97-98): reinstala, escondido da Etapa A, o elaborador
+  # local que deixa `suppress_compilation` fail-closed. Coerência → fail-closed.
+  "unsuppress_compilation",
+  # Gera código compilado (`addAndCompile`) para uma definição: produz código executável, que pode
+  # ser usado por avaliação nativa.
+  "«compile_def%»",
+  # Gera código compilado para o recursor de um indutivo.
+  "«compile_inductive%»",
+]
