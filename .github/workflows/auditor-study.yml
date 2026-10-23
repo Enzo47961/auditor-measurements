@@ -10,6 +10,12 @@ on:
         description: "commit (SHA) fixado do auditor"
         required: true
         type: string
+      mode:
+        description: "exclusion: exclusão (B); defects: conferir os defeitos plantados (study/defects.json)"
+        required: false
+        default: exclusion
+        type: choice
+        options: ["exclusion", "defects"]
 
 permissions:
   contents: read
@@ -80,9 +86,17 @@ jobs:
         run: lake exe cache get 2>&1 | tail -20
 
       - name: estudo — auditar os PRs elegíveis e aplicar a exclusão (B)
+        if: inputs.mode != 'defects'
         run: |
           T="$RUNNER_TEMP/auditor-tool"
           python "$T/tools/phase1/study_audit.py" . --selection "$T/study/selection.json" --patches "$T/study/patches" --policy "$T/policy.toml" --out "$RUNNER_TEMP/out"
+          git status --short | head -5
+
+      - name: estudo — conferir os defeitos plantados (instruções 27 e 28)
+        if: inputs.mode == 'defects'
+        run: |
+          T="$RUNNER_TEMP/auditor-tool"
+          python "$T/tools/phase1/study_audit.py" . --selection "$T/study/selection.json" --patches "$T/study/patches" --policy "$T/policy.toml" --out "$RUNNER_TEMP/out" --defects "$T/study/defects.json"
           git status --short | head -5
 
       - name: artefato
