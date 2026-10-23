@@ -19,7 +19,7 @@ on:
         required: true
         default: "all"
         type: choice
-        options: ["all", "p0-1", "p0-2"]
+        options: ["all", "p0-1", "p0-2", "l35"]
 
 permissions:
   contents: read
@@ -90,7 +90,7 @@ jobs:
         run: lake exe cache get 2>&1 | tail -20
 
       - name: P0-2 — causas de fail-closed da Etapa A
-        if: inputs.measure == 'all' || inputs.measure == 'p0-2'
+        if: inputs.measure == 'all' || inputs.measure == 'p0-2' || inputs.measure == 'l35'
         run: |
           T="$RUNNER_TEMP/auditor-tool/tools"
           python "$T/layer2/fanout.py" . --root Mathlib --json "$RUNNER_TEMP/out/fanout.json" > /dev/null
@@ -102,7 +102,7 @@ jobs:
           head -12 "$RUNNER_TEMP/out/p0-2-all.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: P0-1 — compilar o scanner
-        if: inputs.measure == 'all' || inputs.measure == 'p0-1'
+        if: inputs.measure == 'all' || inputs.measure == 'p0-1' || inputs.measure == 'l35'
         run: |
           B="$RUNNER_TEMP/ibscan"
           mkdir -p "$B"
@@ -123,6 +123,17 @@ jobs:
           python "$M" report "$O/p0-1-classify.json" "$O/p0-1-reach.json" --json "$O/p0-1.json" --md "$O/p0-1.md"
           grep -E "Elapsed|Maximum resident" "$O"/p0-1-*.time || true
           head -40 "$O/p0-1.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: L-35 — código executável na elaboração (L-33a por ambiente) no Mathlib inteiro
+        if: inputs.measure == 'all' || inputs.measure == 'l35'
+        run: |
+          S="$RUNNER_TEMP/ibscan/.lake/build/bin/implemented_by_scan"
+          M="$RUNNER_TEMP/auditor-tool/tools/phase1/implemented_by_measure.py"
+          O="$RUNNER_TEMP/out"
+          /usr/bin/time -v lake env "$S" execcap Mathlib "$O/l35-execcap.json" 2> "$O/l35-execcap.time"
+          python "$M" l35 "$O/l35-execcap.json" --causes "$O/p0-2-all.json" --json "$O/l35.json" | tee "$O/l35.txt"
+          grep -E "Elapsed|Maximum resident" "$O/l35-execcap.time" || true
+          cat "$O/l35.txt" >> "$GITHUB_STEP_SUMMARY"
 
       - name: artefato
         if: always()
